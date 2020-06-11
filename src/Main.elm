@@ -39,24 +39,24 @@ type alias Model =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { tiles = solved }
-    , Cmd.none
+    ( Model solved
+    , Random.generate NewOrder <| Random.List.shuffle solved
     )
 
 
 solved =
-    [ 1, 2, 3, 4, 5, 6, 7, 8, space ]
+    [ 1, 2, 3, 4, 5, 6, 7, 8, spaceValue ]
 
 
-space =
+spaceValue =
     9
 
 
-defaultSpace =
+defaultSpaceIndex =
     8
 
 
-size =
+matrixSize =
     3
 
 
@@ -75,11 +75,11 @@ update msg model =
     case msg of
         Reset ->
             ( model
-            , Random.generate NewOrder (Random.List.shuffle solved)
+            , Random.generate NewOrder <| Random.List.shuffle solved
             )
 
         NewOrder newOrder ->
-            ( Model (newOrder |> solvabled)
+            ( Model  <| solvabled <| newOrder
             , Cmd.none
             )
 
@@ -94,7 +94,7 @@ solvabled list =
     if isSolvable list then
         list
 
-    else if List.member (indexOf space list) [ 0, 1 ] then
+    else if List.member (indexOf spaceValue list) [ 0, 1 ] then
         swap 2 3 list
 
     else
@@ -113,7 +113,7 @@ isSolvable list =
 
 indexOf : Int -> List Int -> Int
 indexOf value list =
-    Maybe.withDefault -1 (List.Extra.elemIndex value list)
+    Maybe.withDefault -1 <| List.Extra.elemIndex value list
 
 
 type Parity
@@ -130,7 +130,7 @@ inverted parity =
         Odd
 
 
-type alias Progressing =
+type alias Temporary =
     { list : List Int
     , parity : Parity
     }
@@ -138,30 +138,31 @@ type alias Progressing =
 
 exchangingParity : List Int -> Parity
 exchangingParity list =
-    List.foldl updateEP (Progressing list Even) (List.indexedMap Tuple.pair list)
+    list 
+        |> List.indexedMap Tuple.pair 
+        |> List.foldl updateEP (Temporary list Even)
         |> .parity
 
-
-updateEP : ( Int, Int ) -> Progressing -> Progressing
-updateEP ( i, _ ) progressing =
-    if index i progressing.list == index i solved then
-        progressing
+updateEP : ( Int, Int ) -> Temporary -> Temporary
+updateEP ( i, _ ) temp =
+    if valueOf i temp.list == valueOf i solved then
+        temp
 
     else
-        { progressing
-            | list = swap i (indexOf (index i solved) progressing.list) progressing.list
-            , parity = inverted progressing.parity
+        { temp
+            | list = swap i (indexOf (valueOf i solved) temp.list) temp.list
+            , parity = inverted temp.parity
         }
 
 
-index : Int -> List Int -> Int
-index i list =
-    Maybe.withDefault -1 (List.Extra.getAt i list)
+valueOf : Int -> List Int -> Int
+valueOf i list =
+    Maybe.withDefault -1 <| List.Extra.getAt i list
 
 
 spaceMovementParity : List Int -> Parity
 spaceMovementParity list =
-    if Arithmetic.isEven (distance (indexOf space list) defaultSpace) then
+    if Arithmetic.isEven <| distance (indexOf spaceValue list) defaultSpaceIndex then
         Even
 
     else
@@ -171,14 +172,14 @@ spaceMovementParity list =
 moveBy : Int -> List Int -> List Int
 moveBy value list =
     let
-        positionValue =
+        valueIndex =
             indexOf value list
 
-        positionSpace =
-            indexOf space list
+        spaceIndex =
+            indexOf spaceValue list
     in
-    if distance positionValue positionSpace == 1 then
-        list |> swap positionValue positionSpace
+    if distance valueIndex spaceIndex == 1 then
+        list |> swap valueIndex spaceIndex
 
     else
         list
@@ -186,7 +187,7 @@ moveBy value list =
 
 distance : Int -> Int -> Int
 distance a b =
-    abs (modBy size a - modBy size b) + abs (a // size - b // size)
+    abs (modBy matrixSize a - modBy matrixSize b) + abs (a // matrixSize - b // matrixSize)
 
 
 
@@ -213,18 +214,17 @@ view model =
 
 putTile : Int -> Html Msg
 putTile value =
-    div [ class "panel__tile-wrapper" ]
-        [ if value == space then
-            div
-                [ class "tile tile_no_space"
-                , onClick (Click value)
-                ]
-                [ text "_" ]
+    if value == spaceValue then
+        div
+            [ class "tile tile_no_space"
+            , onClick (Click value)
+            ]
+            [ text "_" ]
 
-          else
-            div
-                [ class ("tile tile_no_" ++ String.fromInt value)
-                , onClick (Click value)
-                ]
-                [ text (String.fromInt value) ]
-        ]
+    else
+        div
+            [ class ("tile tile_no_" ++ String.fromInt value)
+            , onClick (Click value)
+            ]
+            [ text (String.fromInt value) ]
+
